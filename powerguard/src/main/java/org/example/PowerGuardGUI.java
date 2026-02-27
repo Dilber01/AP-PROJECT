@@ -2,10 +2,10 @@ package org.example;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.HashMap;
 import java.util.Map;
-
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
@@ -16,175 +16,163 @@ import java.io.File;
 public class PowerGuardGUI extends JFrame {
     private LinearRegressionModel predictor;
     private final Map<String, Map<String, Integer>> deviceLibrary = new HashMap<>();
-    private final double UNIT_RATE = 8.0; // Your rate of 8.0 per unit
-    private JTextField txtAppliance, txtRating, txtQuantity, txtHours;
-    private JLabel lblResult;
-    private ChartPanel chartPanel; // Fixed: Declared missing variable
-    private DefaultCategoryDataset dataset;
-    private JTextField txtBudget;
-    private JPanel pnlStatus;
+    private final double UNIT_RATE = 8.0;
 
+    private JTextField txtQuantity, txtHours, txtBudget, txtSearch;
+    private JLabel lblResult;
+    private ChartPanel chartPanel;
+    private DefaultCategoryDataset dataset;
+    private JPanel pnlStatus;
+    private JComboBox<String> comboCompany, comboDevice;
+
+    // History Table Components
+    private DefaultTableModel tableModel;
+    private JTable historyTable;
 
     public PowerGuardGUI(LinearRegressionModel predictor) {
+        // 1. Initialize Predictor FIRST
         this.predictor = predictor;
-        // Apply modern look
+        try {
+            // Fix for "datasetHeader is null" crash
+            this.predictor.initializeHeader();
+        } catch (Exception e) {
+            System.err.println("Predictor Header Init Failed: " + e.getMessage());
+        }
+
+        // 2. Apply Modern Look
         try {
             UIManager.setLookAndFeel(new FlatDarkLaf());
         } catch (Exception e) {
             System.err.println("Failed to initialize FlatLaf");
         }
-        // Inside the constructor
-        // Inside PowerGuardGUI constructor
-// KITCHEN & FOOD
-        Map<String, Integer> samsung = new HashMap<>();
-        samsung.put("Smart Refrigerator", 400);
-        samsung.put("Microwave Oven", 1100);
-        samsung.put("Dishwasher", 1200);
 
-        Map<String, Integer> lg = new HashMap<>();
-        lg.put("InstaView Fridge", 350);
-        lg.put("Inverter AC (1.5 Ton)", 1450);
-        lg.put("OLED TV (65 inch)", 150);
+        initializeData();
 
-        Map<String, Integer> whirlpool = new HashMap<>();
-        whirlpool.put("Triple Door Fridge", 300);
-        whirlpool.put("Front Load Washer", 2100);
-        whirlpool.put("Air Purifier", 50);
-
-// HIGH POWER & EV
-        Map<String, Integer> mobility = new HashMap<>();
-        mobility.put("Tesla Wall Connector", 11500);
-        mobility.put("Ather 450X Charger", 850);
-        mobility.put("Ola S1 Pro Charger", 750);
-
-// COMPUTING
-        Map<String, Integer> apple = new HashMap<>();
-        apple.put("MacBook Pro (M3)", 65);
-        apple.put("Studio Display", 30);
-        apple.put("iPad Pro Charger", 20);
-
-// Update your main deviceLibrary
-        deviceLibrary.put("Samsung", samsung);
-        deviceLibrary.put("LG", lg);
-        deviceLibrary.put("Whirlpool", whirlpool);
-        deviceLibrary.put("Mobility (EV)", mobility);
-        deviceLibrary.put("Apple (Computing)", apple);
-
-        Map<String, Integer> samsungDevices = new HashMap<>();
-        samsungDevices.put("Inverter AC (1.5 Ton)", 1500);
-        samsungDevices.put("Smart Fridge", 300);
-
-        Map<String, Integer> lgDevices = new HashMap<>();
-        lgDevices.put("OLED TV", 150);
-        lgDevices.put("Washing Machine", 2000);
-        this.predictor = new LinearRegressionModel();
-        try {
-            this.predictor.trainModel("src/main/resources/data/household_power.arff");
-        } catch (Exception e) {
-            System.err.println("Model training failed: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, "Critical Error: ML Dataset not found or corrupted.");
-        }
-        deviceLibrary.put("Samsung", samsungDevices);
-        deviceLibrary.put("LG", lgDevices);
+        // 3. Set up the Window
         setTitle("PowerGuard Professional");
-        // Inside the constructor
-        Map<String, Integer> whirlpoolDevices = new HashMap<>();
-        whirlpoolDevices.put("Top Load Washer", 500);
-        whirlpoolDevices.put("Side-by-Side Fridge", 450);
-        whirlpoolDevices.put("Microwave Oven", 1200);
-
-        deviceLibrary.put("Whirlpool", whirlpoolDevices);
-
-        setSize(1000, 700);
+        setSize(1200, 800);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
 
-        // 1. Setup Input Card
-        txtAppliance = new JTextField(15);
-        txtRating = new JTextField("1500", 15);
-        txtQuantity = new JTextField("1", 15);
-        txtHours = new JTextField("5.5", 15);
-        lblResult = new JLabel("Estimated Cost: ₹0.00");
-        lblResult.setFont(new Font("SansSerif", Font.BOLD, 16));
-
-        // 2. Build the UI Sections
+        // 4. Initialize Sections
+        setupChart();
         add(createSidebar(), BorderLayout.WEST);
         add(createMainDashboard(), BorderLayout.CENTER);
         add(createInputCard(), BorderLayout.EAST);
     }
 
+    private void initializeData() {
+        // EXISTING COMPANIES
+        Map<String, Integer> samsung = new HashMap<>();
+        samsung.put("Smart Refrigerator", 400);
+        samsung.put("Inverter AC (1.5 Ton)", 1500);
+        samsung.put("Microwave Solo", 800);
+
+        Map<String, Integer> lg = new HashMap<>();
+        lg.put("InstaView Fridge", 350);
+        lg.put("OLED TV", 150);
+        lg.put("Top Load Washer", 500);
+
+        // NEW COMPANIES & DEVICES
+        Map<String, Integer> whirlpool = new HashMap<>();
+        whirlpool.put("Side-by-Side Fridge", 450);
+        whirlpool.put("Convection Oven", 1200);
+        whirlpool.put("Dishwasher", 1800);
+
+        Map<String, Integer> dyson = new HashMap<>();
+        dyson.put("Pure Cool Air Purifier", 40);
+        dyson.put("Supersonic Hair Dryer", 1600);
+        dyson.put("V15 Detect Vacuum", 660);
+
+        Map<String, Integer> sony = new HashMap<>();
+        sony.put("PlayStation 5", 200);
+        sony.put("Bravia 4K TV", 180);
+        sony.put("Soundbar System", 60);
+
+        Map<String, Integer> mobility = new HashMap<>();
+        mobility.put("Tesla Wall Connector", 11500);
+        mobility.put("Ather 450X Charger", 850);
+
+        deviceLibrary.put("Samsung", samsung);
+        deviceLibrary.put("LG", lg);
+        deviceLibrary.put("Whirlpool", whirlpool);
+        deviceLibrary.put("Dyson", dyson);
+        deviceLibrary.put("Sony", sony);
+        deviceLibrary.put("Mobility (EV)", mobility);
+    }
+
     private JPanel createSidebar() {
-        // 1. Initialize the panel FIRST to avoid the NullPointerException
-        JPanel sidebar = new JPanel();
-
-        // 2. Set the appearance and size
+        JPanel sidebar = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 20));
         sidebar.setBackground(new Color(33, 37, 41));
-        sidebar.setPreferredSize(new Dimension(150, 700));
-        sidebar.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 20));
+        sidebar.setPreferredSize(new Dimension(160, 700));
 
-        // 3. Add Branding
         JLabel lblLogo = new JLabel("POWERGUARD");
         lblLogo.setForeground(Color.WHITE);
-        sidebar.add(lblLogo); // Error happened here because sidebar was null
+        lblLogo.setFont(new Font("SansSerif", Font.BOLD, 18));
+        sidebar.add(lblLogo);
 
-        // 4. Add the Reset Button
-        JButton btnReset = new JButton("Reset Chart");
+        JButton btnReset = new JButton("Reset All");
         btnReset.addActionListener(e -> {
             dataset.clear();
-            JOptionPane.showMessageDialog(this, "Chart history cleared.");
+            tableModel.setRowCount(0); // Clears the new table too
+            JOptionPane.showMessageDialog(this, "Analytics history cleared.");
         });
         sidebar.add(btnReset);
 
-        // 5. Add the Export Button
         JButton btnExport = new JButton("Export Chart");
         btnExport.addActionListener(e -> saveChartImage());
         sidebar.add(btnExport);
 
         return sidebar;
     }
+
     private JPanel createMainDashboard() {
-        JPanel dashboard = new JPanel(new BorderLayout());
+        JPanel dashboard = new JPanel(new BorderLayout(10, 10));
         dashboard.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        setupChart(); // Fixed: Method now defined
-        dashboard.add(new JLabel("Usage Analytics"), BorderLayout.NORTH);
+        // Chart Section
+        dashboard.add(new JLabel("Real-time Consumption Trend"), BorderLayout.NORTH);
         dashboard.add(chartPanel, BorderLayout.CENTER);
+
+        // Table Section - NEW
+        String[] columns = {"Device", "Cost (₹)", "CO₂ (kg)", "Status"};
+        tableModel = new DefaultTableModel(columns, 0);
+        historyTable = new JTable(tableModel);
+        historyTable.setRowHeight(25);
+
+        JScrollPane scrollPane = new JScrollPane(historyTable);
+        scrollPane.setPreferredSize(new Dimension(600, 200));
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Usage History Log"));
+        dashboard.add(scrollPane, BorderLayout.SOUTH);
 
         return dashboard;
     }
-    // Replace JTextFields with JComboBox
-    private JComboBox<String> comboCompany;
-    private JComboBox<String> comboDevice;
-    private JLabel lblUnitCost; // To display price along with device
-    private JComboBox<String> comboCategory;
 
     private JPanel createInputCard() {
-        // 1. Initialize the JComboBoxes FIRST
-        // Get the keys from your deviceLibrary (Samsung, LG, etc.)
+        JPanel card = new JPanel(new GridLayout(18, 1, 5, 2));
+        card.setBorder(BorderFactory.createTitledBorder("Calculations"));
 
-        String[] companies = deviceLibrary.keySet().toArray(new String[0]);
-        comboCompany = new JComboBox<>(companies);
+        txtSearch = new JTextField("Search...");
+        JButton btnSearch = new JButton("Search Appliance");
+        btnSearch.setBackground(new Color(33, 150, 243));
+        btnSearch.setForeground(Color.WHITE);
+
+        comboCompany = new JComboBox<>(deviceLibrary.keySet().toArray(new String[0]));
         comboDevice = new JComboBox<>();
-
-        // 2. Initialize other UI components
-        txtQuantity = new JTextField("1", 15);
-        txtHours = new JTextField("5.5", 15);
-        txtBudget = new JTextField("500", 15);
-        lblResult = new JLabel("Estimated Cost: ₹0.00");
+        txtQuantity = new JTextField("1");
+        txtHours = new JTextField("5.5");
+        txtBudget = new JTextField("500");
         pnlStatus = new JPanel();
         pnlStatus.setBackground(Color.GREEN);
+        lblResult = new JLabel("<html>Cost: ₹0.00<br>CO₂: 0.00 kg</html>");
 
-        // 3. Setup the Panel Layout
-        JPanel card = new JPanel(new GridLayout(16, 1, 5, 5));
-        card.setBorder(BorderFactory.createTitledBorder("Categorized Selection"));
-
-        // 4. Add components to the card
+        card.add(new JLabel("Quick Search:"));
+        card.add(txtSearch);
+        card.add(btnSearch);
         card.add(new JLabel("Select Company:"));
         card.add(comboCompany);
         card.add(new JLabel("Select Device:"));
         card.add(comboDevice);
-        card.add(new JLabel("Quantity:"));
-        card.add(txtQuantity);
         card.add(new JLabel("Hours/Day:"));
         card.add(txtHours);
         card.add(new JLabel("Monthly Budget (₹):"));
@@ -197,120 +185,128 @@ public class PowerGuardGUI extends JFrame {
         card.add(btnPredict);
         card.add(lblResult);
 
-        // 5. Setup Listeners
-        // Add the listener so comboDevice updates when comboCompany changes
+        btnSearch.addActionListener(e -> filterDevices(txtSearch.getText().toLowerCase()));
         comboCompany.addActionListener(e -> updateDeviceList());
-
-        // 6. NOW it is safe to call updateDeviceList because comboCompany is not null
         updateDeviceList();
+
+        // Add this inside createInputCard()
+        btnSearch.addActionListener(e -> filterDevices(txtSearch.getText().trim()));
+
+        txtSearch.addActionListener(e -> filterDevices(txtSearch.getText().trim()));
+
+// Clear placeholder text when user clicks
+        txtSearch.addFocusListener(new java.awt.event.FocusAdapter() {
+            public void focusGained(java.awt.event.FocusEvent evt) {
+                if (txtSearch.getText().equals("Search...")) {
+                    txtSearch.setText("");
+                }
+            }
+        });
 
         return card;
     }
 
-    private void setupChart() { // Fixed: Method now defined
-        dataset = new DefaultCategoryDataset();
-        JFreeChart chart = ChartFactory.createBarChart("Consumption Trend", "Record", "Cost (₹)", dataset);
-        chartPanel = new ChartPanel(chart);
-    }
-    private void updateDeviceList() {
-        // 1. Clear the previous list to avoid mixing appliances
+    private void filterDevices(String query) {
+        if (query.isEmpty() || query.equals("search...")) {
+            updateDeviceList(); // Reset to current selected company's list
+            return;
+        }
+
         comboDevice.removeAllItems();
+        boolean found = false;
 
-        // 2. Get current selection
-        String selectedCategory = (String) comboCompany.getSelectedItem();
-
-        // 3. Safety Check: Only proceed if category exists in our library
-        if (selectedCategory != null && deviceLibrary.containsKey(selectedCategory)) {
-            Map<String, Integer> devices = deviceLibrary.get(selectedCategory);
-
-            // 4. Populate the dropdown with device names
+        // We must search through ALL companies, not just the selected one
+        for (String company : deviceLibrary.keySet()) {
+            Map<String, Integer> devices = deviceLibrary.get(company);
             for (String deviceName : devices.keySet()) {
-                comboDevice.addItem(deviceName);
+                if (deviceName.toLowerCase().contains(query.toLowerCase())) {
+                    if (!found) {
+                        // Auto-switch the company dropdown to the first match found
+                        comboCompany.setSelectedItem(company);
+                        found = true;
+                    }
+                    comboDevice.addItem(deviceName);
+                }
             }
         }
-    }
 
-    private void updateUnitCost() {
-        String category = (String) comboCategory.getSelectedItem();
-        String device = (String) comboDevice.getSelectedItem();
-        if (device != null && deviceLibrary.containsKey(category)) {
-            int watts = deviceLibrary.get(category).get(device);
-            // Standard energy formula: (Watts / 1000) * Rate per Unit
-            double hourlyCost = (watts / 1000.0) * UNIT_RATE;
-            lblUnitCost.setText(String.format("Device Rate: ₹%.2f / hr", hourlyCost));
+        if (!found) {
+            JOptionPane.showMessageDialog(this, "No appliance found for: " + query);
+            updateDeviceList();
         }
     }
+
+    private void updateDeviceList() {
+        comboDevice.removeAllItems();
+        String selected = (String) comboCompany.getSelectedItem();
+        if (selected != null) {
+            deviceLibrary.get(selected).keySet().forEach(comboDevice::addItem);
+        }
+    }
+
     private void calculate() {
         try {
-            String category = (String) comboCompany.getSelectedItem();
+            String company = (String) comboCompany.getSelectedItem();
             String device = (String) comboDevice.getSelectedItem();
+            if (device == null) return;
 
-            if (device == null || category == null) {
-                JOptionPane.showMessageDialog(this, "Please select both a company and a device.");
-                return;
-            }
-
-            // 1. Get accurate numeric inputs
-            int rating = deviceLibrary.get(category).get(device);
-            int quantity = Integer.parseInt(txtQuantity.getText());
+            int rating = deviceLibrary.get(company).get(device);
+            int qty = Integer.parseInt(txtQuantity.getText());
             double hours = Double.parseDouble(txtHours.getText());
             double budgetLimit = Double.parseDouble(txtBudget.getText());
 
-            // 2. SCALE THE INPUT FOR ML
-            // Most regression models trained on UCI data expect hourly kW
-            double hourlyKW = (rating / 1000.0) * quantity;
-
-            // 3. PREDICT
-            // Predict the consumption for that specific power level
+            // 1. ML Prediction Logic
+            double hourlyKW = (rating / 1000.0) * qty;
             double predictedHourlyUnits = predictor.predict(hourlyKW);
-
-            // 4. CALCULATE FINAL COST
-            // Multiply predicted hourly rate by actual hours used and the money rate
             double totalUnits = predictedHourlyUnits * hours;
             double cost = totalUnits * UNIT_RATE;
+            double carbon = totalUnits * 0.85;
 
-            // 5. UPDATE UI
-            lblResult.setText(String.format("ML Predicted Cost: ₹%.2f", cost));
+            // 2. Update Result Display
+            lblResult.setText(String.format("<html>Cost: ₹%.2f<br>CO₂: %.2f kg</html>", cost, carbon));
             pnlStatus.setBackground(cost > budgetLimit ? Color.RED : Color.GREEN);
 
-            // 6. UPDATE CHART
-            // Using device name as the category key ensures unique bars
+            // 3. Update Chart and Table
             String entryLabel = device + " (" + (dataset.getColumnCount() + 1) + ")";
             dataset.addValue(cost, "Cost", entryLabel);
 
-            // 7. SAVE
-            new DataHandler().saveRecord(device, cost);
+            tableModel.addRow(new Object[]{
+                    device,
+                    String.format("₹%.2f", cost),
+                    String.format("%.2f kg", carbon),
+                    (cost > budgetLimit ? "Over Budget" : "Safe")
+            });
 
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Input Error: Please enter valid numbers for Quantity, Hours, and Budget.");
+            // 4. Set Bar Color Dynamically
+            org.jfree.chart.plot.CategoryPlot plot = chartPanel.getChart().getCategoryPlot();
+            org.jfree.chart.renderer.category.BarRenderer renderer =
+                    (org.jfree.chart.renderer.category.BarRenderer) plot.getRenderer();
+            renderer.setSeriesPaint(0, cost > budgetLimit ? new Color(255, 82, 82) : new Color(76, 175, 80));
+
         } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "ML Error: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Calculation Error: " + e.getMessage());
         }
     }
+
+    private void setupChart() {
+        dataset = new DefaultCategoryDataset();
+        JFreeChart chart = ChartFactory.createBarChart("Consumption Trend", "Record", "Cost (₹)", dataset);
+        chart.setBackgroundPaint(new Color(30, 30, 30));
+        chart.getTitle().setPaint(Color.WHITE);
+
+        org.jfree.chart.plot.CategoryPlot plot = chart.getCategoryPlot();
+        plot.setBackgroundPaint(new Color(45, 45, 48));
+        plot.setRangeGridlinePaint(Color.LIGHT_GRAY);
+
+        chartPanel = new ChartPanel(chart);
+    }
+
     private void saveChartImage() {
         try {
-            // 1. Create a file chooser to let the user pick where to save
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Save Chart as Image");
-
-            int userSelection = fileChooser.showSaveDialog(this);
-
-            if (userSelection == JFileChooser.APPROVE_OPTION) {
-                File fileToSave = fileChooser.getSelectedFile();
-                // Ensure the file has a .png extension
-                String filePath = fileToSave.getAbsolutePath();
-                if (!filePath.toLowerCase().endsWith(".png")) {
-                    fileToSave = new File(filePath + ".png");
-                }
-
-                // 2. Export the JFreeChart from your chartPanel
-                ChartUtils.saveChartAsPNG(fileToSave, chartPanel.getChart(), 800, 600);
-
-                JOptionPane.showMessageDialog(this, "Chart saved successfully to: " + fileToSave.getName());
+            JFileChooser fc = new JFileChooser();
+            if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+                ChartUtils.saveChartAsPNG(fc.getSelectedFile(), chartPanel.getChart(), 800, 600);
             }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error saving chart: " + e.getMessage());
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }
